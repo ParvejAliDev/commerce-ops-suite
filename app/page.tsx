@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 const sections = [
   'Role-based operations workspace',
   'Order workflow and audit visibility',
@@ -28,6 +30,10 @@ export default function HomePage() {
         deterministic local infrastructure, and a clean path to ECS, RDS, and
         ElastiCache later.
       </p>
+      <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+        <Link href="/login">Open login</Link>
+        <Link href="/orders">Open protected orders page</Link>
+      </div>
       <ul style={{ marginTop: '2rem', paddingLeft: '1.2rem', lineHeight: 1.9 }}>
         {sections.map((section) => (
           <li key={section}>{section}</li>

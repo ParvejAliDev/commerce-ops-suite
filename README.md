@@ -1,15 +1,15 @@
 # Commerce Ops Suite
 
+Local-first internal operations dashboard.
+
 ## Local Quick Start
 
-1. Review `.env` and adjust values if needed.
-2. Run `docker compose up --build` for the full stack.
-3. Open `http://localhost:3000`.
-4. Use `npm run dev` outside Docker if you want a faster frontend iteration loop while keeping the dependencies containerized.
+1. Review `.env`.
+2. Run `docker compose up --build`.
+3. Run `npm run seed`.
+4. Open `http://localhost:3000`.
 
-## Included Surface
+## Seeded Credentials
 
-- Dockerized `web`, `worker`, `postgres`, and `redis`
-- Health endpoint at `/api/health`
-- Environment contract with validation
-- Worker process scaffold
+- Email: `admin.local@example.com`
+- Password: `LocalAdminPass123!`

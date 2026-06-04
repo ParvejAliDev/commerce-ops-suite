@@ -10,6 +10,11 @@ const envSchema = z.object({
   SESSION_SECRET: z
     .string()
     .min(12, 'SESSION_SECRET must be at least 12 characters'),
+  SESSION_COOKIE_NAME: z.string().min(1, 'SESSION_COOKIE_NAME is required'),
+  LOCAL_ADMIN_EMAIL: z.email('LOCAL_ADMIN_EMAIL must be a valid email address'),
+  LOCAL_ADMIN_PASSWORD: z
+    .string()
+    .min(12, 'LOCAL_ADMIN_PASSWORD must be at least 12 characters'),
   APP_BASE_URL: z.string().url('APP_BASE_URL must be a valid URL'),
 });
 

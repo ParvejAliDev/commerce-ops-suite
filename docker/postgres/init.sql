@@ -11,6 +11,19 @@ create table if not exists users (
   created_at timestamptz not null default now()
 );
 
+alter table users add column if not exists password_hash text;
+
+create table if not exists sessions (
+  id serial primary key,
+  user_id integer not null references users(id) on delete cascade,
+  session_token_hash text not null unique,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists sessions_user_id_idx on sessions(user_id);
+create index if not exists sessions_expires_at_idx on sessions(expires_at);
+
 create table if not exists orders (
   id serial primary key,
   external_id text not null unique,
