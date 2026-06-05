@@ -1,24 +1,36 @@
 import { getSql } from '../../lib/db';
+import { serializeTimestamp, type TimestampInput } from '../../lib/timestamps';
 import type { RoleName } from '../rbac';
 import type { UserListItem } from './index';
 
-type UserRow = UserListItem;
+type UserRow = Omit<UserListItem, 'createdAt'> & {
+  createdAt: TimestampInput;
+};
+
+function mapUserRow(row: UserRow): UserListItem {
+  return {
+    ...row,
+    createdAt: serializeTimestamp(row.createdAt),
+  };
+}
 
 export async function listUsers(): Promise<UserListItem[]> {
   const sql = getSql();
 
-  return sql<UserRow[]>`
+  const rows = await sql<UserRow[]>`
     select
       users.id,
       users.email,
       users.full_name as "fullName",
       roles.name as "roleName",
       users.is_active as "isActive",
-      to_char(users.created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') as "createdAt"
+      users.created_at as "createdAt"
     from users
     inner join roles on roles.id = users.role_id
     order by users.created_at asc, users.id asc
   `;
+
+  return rows.map(mapUserRow);
 }
 
 export async function updateUserRole(
@@ -60,12 +72,13 @@ export async function getUserById(
       users.full_name as "fullName",
       roles.name as "roleName",
       users.is_active as "isActive",
-      to_char(users.created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') as "createdAt"
+      users.created_at as "createdAt"
     from users
     inner join roles on roles.id = users.role_id
     where users.id = ${userId}
     limit 1
   `;
 
-  return result[0] ?? null;
+  const row = result[0];
+  return row ? mapUserRow(row) : null;
 }

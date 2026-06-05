@@ -1,4 +1,5 @@
 import { getSql } from '../../lib/db';
+import { serializeTimestamp, type TimestampInput } from '../../lib/timestamps';
 import { canTransitionOrderStatus, getNextOrderStatuses } from './status';
 import type {
   OrderLifecycleStatus,
@@ -28,16 +29,40 @@ export function summarizeOrders(
   );
 }
 
-type OrderRow = {
-  id: number;
-  externalId: string;
-  status: OrderLifecycleStatus;
-  assignedTeam: string;
-  createdAt: string;
+type OrderRow = Omit<OrderRecord, 'createdAt'> & {
+  createdAt: TimestampInput;
 };
 
-type OrderStatusHistoryRow = OrderStatusHistoryEntry;
-type OrderNoteRow = OrderNoteRecord;
+type OrderStatusHistoryRow = Omit<OrderStatusHistoryEntry, 'createdAt'> & {
+  createdAt: TimestampInput;
+};
+
+type OrderNoteRow = Omit<OrderNoteRecord, 'createdAt'> & {
+  createdAt: TimestampInput;
+};
+
+function mapOrderRow(row: OrderRow): OrderRecord {
+  return {
+    ...row,
+    createdAt: serializeTimestamp(row.createdAt),
+  };
+}
+
+function mapOrderStatusHistoryRow(
+  row: OrderStatusHistoryRow,
+): OrderStatusHistoryEntry {
+  return {
+    ...row,
+    createdAt: serializeTimestamp(row.createdAt),
+  };
+}
+
+function mapOrderNoteRow(row: OrderNoteRow): OrderNoteRecord {
+  return {
+    ...row,
+    createdAt: serializeTimestamp(row.createdAt),
+  };
+}
 
 export async function listOrders(filters: OrdersFilters): Promise<{
   rows: OrderRecord[];
@@ -57,17 +82,18 @@ export async function listOrders(filters: OrdersFilters): Promise<{
       external_id as "externalId",
       status,
       assigned_team as "assignedTeam",
-      to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') as "createdAt"
+      created_at as "createdAt"
     from orders
     where 1 = 1
     ${statusClause}
     ${queryClause}
     order by created_at desc, id desc
   `;
+  const records = rows.map(mapOrderRow);
 
   return {
-    rows,
-    summary: summarizeOrders(rows),
+    rows: records,
+    summary: summarizeOrders(records),
   };
 }
 
@@ -107,13 +133,14 @@ export async function getOrderByExternalId(
       external_id as "externalId",
       status,
       assigned_team as "assignedTeam",
-      to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') as "createdAt"
+      created_at as "createdAt"
     from orders
     where external_id = ${externalId}
     limit 1
   `;
 
-  return rows[0] ?? null;
+  const row = rows[0];
+  return row ? mapOrderRow(row) : null;
 }
 
 export async function listOrderStatusHistory(
@@ -121,18 +148,20 @@ export async function listOrderStatusHistory(
 ): Promise<OrderStatusHistoryEntry[]> {
   const sql = getSql();
 
-  return sql<OrderStatusHistoryRow[]>`
+  const rows = await sql<OrderStatusHistoryRow[]>`
     select
       id,
       previous_status as "previousStatus",
       next_status as "nextStatus",
       actor_email as "actorEmail",
       note,
-      to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') as "createdAt"
+      created_at as "createdAt"
     from order_status_history
     where order_id = ${orderId}
     order by created_at desc, id desc
   `;
+
+  return rows.map(mapOrderStatusHistoryRow);
 }
 
 export async function listOrderNotes(
@@ -140,16 +169,18 @@ export async function listOrderNotes(
 ): Promise<OrderNoteRecord[]> {
   const sql = getSql();
 
-  return sql<OrderNoteRow[]>`
+  const rows = await sql<OrderNoteRow[]>`
     select
       id,
       actor_email as "actorEmail",
       body,
-      to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') as "createdAt"
+      created_at as "createdAt"
     from order_notes
     where order_id = ${orderId}
     order by created_at desc, id desc
   `;
+
+  return rows.map(mapOrderNoteRow);
 }
 
 export async function updateOrderStatus(input: {

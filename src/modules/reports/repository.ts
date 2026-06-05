@@ -1,4 +1,9 @@
 import { getSql } from '../../lib/db';
+import {
+  serializeNullableTimestamp,
+  serializeTimestamp,
+  type TimestampInput,
+} from '../../lib/timestamps';
 import type { OrderRecord } from '../orders';
 import type {
   ReportDefinition,
@@ -7,29 +12,69 @@ import type {
   ReportJobStatus,
 } from './index';
 
-type ReportDefinitionRow = ReportDefinition;
-type ReportJobRow = Omit<ReportJob, 'filters'> & {
-  filters: ReportFilters | null;
+type ReportDefinitionRow = Omit<ReportDefinition, 'createdAt'> & {
+  createdAt: TimestampInput;
 };
 
-type ExportOrderRow = Pick<
+type ReportJobRow = Omit<
+  ReportJob,
+  'filters' | 'createdAt' | 'startedAt' | 'completedAt'
+> & {
+  filters: ReportFilters | null;
+  createdAt: TimestampInput;
+  startedAt: TimestampInput | null;
+  completedAt: TimestampInput | null;
+};
+
+type ExportOrderRow = Omit<
+  Pick<OrderRecord, 'externalId' | 'status' | 'assignedTeam' | 'createdAt'>,
+  'createdAt'
+> & {
+  createdAt: TimestampInput;
+};
+
+function mapReportDefinitionRow(row: ReportDefinitionRow): ReportDefinition {
+  return {
+    ...row,
+    createdAt: serializeTimestamp(row.createdAt),
+  };
+}
+
+function mapReportJobRow(row: ReportJobRow): ReportJob {
+  return {
+    ...row,
+    filters: row.filters ?? { query: '', status: 'all' },
+    createdAt: serializeTimestamp(row.createdAt),
+    startedAt: serializeNullableTimestamp(row.startedAt),
+    completedAt: serializeNullableTimestamp(row.completedAt),
+  };
+}
+
+function mapExportOrderRow(row: ExportOrderRow): Pick<
   OrderRecord,
   'externalId' | 'status' | 'assignedTeam' | 'createdAt'
->;
+> {
+  return {
+    ...row,
+    createdAt: serializeTimestamp(row.createdAt),
+  };
+}
 
 export async function listReportDefinitions(): Promise<ReportDefinition[]> {
   const sql = getSql();
 
-  return sql<ReportDefinitionRow[]>`
+  const rows = await sql<ReportDefinitionRow[]>`
     select
       id,
       slug,
       name,
       description,
-      to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') as "createdAt"
+      created_at as "createdAt"
     from reports
     order by name asc
   `;
+
+  return rows.map(mapReportDefinitionRow);
 }
 
 export async function listReportJobs(limit = 20): Promise<ReportJob[]> {
@@ -45,25 +90,16 @@ export async function listReportJobs(limit = 20): Promise<ReportJob[]> {
       report_jobs.filters,
       report_jobs.artifact_name as "artifactName",
       report_jobs.artifact_content as "artifactContent",
-      to_char(report_jobs.created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') as "createdAt",
-      case
-        when report_jobs.started_at is null then null
-        else to_char(report_jobs.started_at, 'YYYY-MM-DD"T"HH24:MI:SSOF')
-      end as "startedAt",
-      case
-        when report_jobs.completed_at is null then null
-        else to_char(report_jobs.completed_at, 'YYYY-MM-DD"T"HH24:MI:SSOF')
-      end as "completedAt"
+      report_jobs.created_at as "createdAt",
+      report_jobs.started_at as "startedAt",
+      report_jobs.completed_at as "completedAt"
     from report_jobs
     inner join reports on reports.id = report_jobs.report_id
     order by report_jobs.created_at desc, report_jobs.id desc
     limit ${limit}
   `;
 
-  return rows.map((row) => ({
-    ...row,
-    filters: row.filters ?? { query: '', status: 'all' },
-  }));
+  return rows.map(mapReportJobRow);
 }
 
 export async function queueReportJob(input: {
@@ -100,9 +136,9 @@ export async function queueReportJob(input: {
       report_jobs.filters,
       report_jobs.artifact_name as "artifactName",
       report_jobs.artifact_content as "artifactContent",
-      to_char(report_jobs.created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') as "createdAt",
-      null::text as "startedAt",
-      null::text as "completedAt"
+      report_jobs.created_at as "createdAt",
+      null::timestamptz as "startedAt",
+      null::timestamptz as "completedAt"
   `;
 
   const row = rows[0];
@@ -110,10 +146,7 @@ export async function queueReportJob(input: {
     return null;
   }
 
-  return {
-    ...row,
-    filters: row.filters ?? { query: '', status: 'all' },
-  };
+  return mapReportJobRow(row);
 }
 
 export async function claimNextReportJob(): Promise<ReportJob | null> {
@@ -144,9 +177,9 @@ export async function claimNextReportJob(): Promise<ReportJob | null> {
       report_jobs.filters,
       report_jobs.artifact_name as "artifactName",
       report_jobs.artifact_content as "artifactContent",
-      to_char(report_jobs.created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') as "createdAt",
-      to_char(report_jobs.started_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') as "startedAt",
-      null::text as "completedAt"
+      report_jobs.created_at as "createdAt",
+      report_jobs.started_at as "startedAt",
+      null::timestamptz as "completedAt"
   `;
 
   const row = rows[0];
@@ -154,10 +187,7 @@ export async function claimNextReportJob(): Promise<ReportJob | null> {
     return null;
   }
 
-  return {
-    ...row,
-    filters: row.filters ?? { query: '', status: 'all' },
-  };
+  return mapReportJobRow(row);
 }
 
 export async function completeReportJob(input: {
@@ -196,7 +226,9 @@ export async function failReportJob(
 
 export async function listOrdersForReport(
   filters: ReportFilters,
-): Promise<ExportOrderRow[]> {
+): Promise<
+  Pick<OrderRecord, 'externalId' | 'status' | 'assignedTeam' | 'createdAt'>[]
+> {
   const sql = getSql();
   const queryValue = filters.query ? `%${filters.query}%` : null;
   const queryClause = queryValue
@@ -205,18 +237,20 @@ export async function listOrdersForReport(
   const statusClause =
     filters.status === 'all' ? sql`` : sql`and status = ${filters.status}`;
 
-  return sql<ExportOrderRow[]>`
+  const rows = await sql<ExportOrderRow[]>`
     select
       external_id as "externalId",
       status,
       assigned_team as "assignedTeam",
-      to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') as "createdAt"
+      created_at as "createdAt"
     from orders
     where 1 = 1
       ${queryClause}
       ${statusClause}
     order by created_at desc, id desc
   `;
+
+  return rows.map(mapExportOrderRow);
 }
 
 export async function countReportJobsByStatus(): Promise<
