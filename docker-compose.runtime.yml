@@ -35,7 +35,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: npm run dev -- --hostname 0.0.0.0
+    command: npm run dev -- --webpack --hostname 0.0.0.0
     env_file:
       - .env
     environment:

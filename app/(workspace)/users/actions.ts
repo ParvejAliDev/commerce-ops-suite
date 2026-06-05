@@ -3,15 +3,15 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
-import { recordAuditEntry } from '../../src/modules/audit/repository';
-import { canManageUsers } from '../../src/modules/auth/access';
-import { requireUsersAccess } from '../../src/modules/auth/current-user';
-import { rolePermissions, type RoleName } from '../../src/modules/rbac';
+import { recordAuditEntry } from '@/src/modules/audit/repository';
+import { canManageUsers } from '@/src/modules/auth/access';
+import { requireUsersAccess } from '@/src/modules/auth/current-user';
+import { rolePermissions, type RoleName } from '@/src/modules/rbac';
 import {
   getUserById,
   toggleUserActiveState,
   updateUserRole,
-} from '../../src/modules/users/repository';
+} from '@/src/modules/users/repository';
 
 const roleNames = Object.keys(rolePermissions) as RoleName[];
 

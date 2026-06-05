@@ -3,16 +3,16 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
-import { recordAuditEntry } from '../../../src/modules/audit/repository';
-import { canUpdateOrders } from '../../../src/modules/auth/access';
-import { requireOrdersAccess } from '../../../src/modules/auth/current-user';
+import { recordAuditEntry } from '@/src/modules/audit/repository';
+import { canUpdateOrders } from '@/src/modules/auth/access';
+import { requireOrdersAccess } from '@/src/modules/auth/current-user';
 import {
   addOrderNote,
   getOrderByExternalId,
   orderStatuses,
   updateOrderStatus,
   type OrderLifecycleStatus,
-} from '../../../src/modules/orders';
+} from '@/src/modules/orders';
 
 const orderLifecycleStatuses = orderStatuses.filter(
   (status): status is OrderLifecycleStatus => status !== 'all',

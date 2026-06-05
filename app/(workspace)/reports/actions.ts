@@ -3,13 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
-import { recordAuditEntry } from '../../src/modules/audit/repository';
-import { requireReportsAccess } from '../../src/modules/auth/current-user';
-import {
-  orderStatuses,
-  type OrderLifecycleStatus,
-} from '../../src/modules/orders';
-import { queueReportJob } from '../../src/modules/reports/repository';
+import { recordAuditEntry } from '@/src/modules/audit/repository';
+import { requireReportsAccess } from '@/src/modules/auth/current-user';
+import { orderStatuses, type OrderLifecycleStatus } from '@/src/modules/orders';
+import { queueReportJob } from '@/src/modules/reports/repository';
 
 const orderLifecycleStatuses = orderStatuses.filter(
   (status): status is OrderLifecycleStatus => status !== 'all',
