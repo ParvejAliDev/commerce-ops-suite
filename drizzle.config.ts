@@ -6,7 +6,7 @@ export default defineConfig({
   dbCredentials: {
     url:
       process.env.DATABASE_URL ??
-      'postgresql://ops_app:ops_app@localhost:5432/ops_dashboard',
+      'postgresql://ops_app:ops_app@localhost:55432/ops_dashboard',
   },
   dialect: 'postgresql',
   out: './drizzle',

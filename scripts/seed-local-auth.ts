@@ -4,19 +4,7 @@ import { endSql, getSql } from '../src/lib/db';
 import { getEnv } from '../src/lib/env';
 import { hashPassword } from '../src/modules/auth/password';
 import { upsertLocalAdminUser } from '../src/modules/auth/repository';
-
-const seededUsers = [
-  {
-    email: 'ops.local@example.com',
-    fullName: 'Ops Lead',
-    roleName: 'operations',
-  },
-  {
-    email: 'viewer.local@example.com',
-    fullName: 'Read Only Analyst',
-    roleName: 'viewer',
-  },
-] as const;
+import { seededOrders, seededReports, seededUsers } from './local-seed-data';
 
 async function main() {
   const env = getEnv(process.env);
@@ -50,27 +38,29 @@ async function main() {
     `;
   }
 
-  await sql`
-    insert into reports (slug, name, description)
-    values
-      (
-        'orders-daily-export',
-        'Daily Orders Export',
-        'Full operational order export for handoffs and spreadsheet reviews.'
-      ),
-      (
-        'orders-exceptions-export',
-        'Exceptions Export',
-        'Focused export for pending review and cancelled work queues.'
-      )
-    on conflict (slug) do update set
-      name = excluded.name,
-      description = excluded.description
-  `;
+  for (const report of seededReports) {
+    await sql`
+      insert into reports (slug, name, description)
+      values (${report.slug}, ${report.name}, ${report.description})
+      on conflict (slug) do update set
+        name = excluded.name,
+        description = excluded.description
+    `;
+  }
 
-  console.log('Seeded local users and report definitions', {
+  for (const order of seededOrders) {
+    await sql`
+      insert into orders (external_id, status, assigned_team)
+      values (${order.externalId}, ${order.status}, ${order.assignedTeam})
+      on conflict (external_id) do nothing
+    `;
+  }
+
+  console.log('Seeded local users, reports, and sample orders', {
     admin: env.LOCAL_ADMIN_EMAIL,
     additionalUsers: seededUsers.map((user) => user.email),
+    orders: seededOrders.map((order) => order.externalId),
+    reports: seededReports.map((report) => report.slug),
   });
   await endSql();
 }
