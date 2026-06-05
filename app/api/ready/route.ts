@@ -10,7 +10,7 @@ export async function GET() {
     await getSql()`select 1`;
 
     return NextResponse.json({
-      status: 'ok',
+      status: 'ready',
       service: 'commerce-ops-suite',
       timestamp: new Date().toISOString(),
       dependencies: {

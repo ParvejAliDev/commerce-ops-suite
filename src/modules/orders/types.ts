@@ -8,6 +8,7 @@ export const orderStatuses = [
 
 export type OrderStatus = (typeof orderStatuses)[number];
 export type OrderFilterStatus = OrderStatus;
+export type OrderLifecycleStatus = Exclude<OrderStatus, 'all'>;
 
 export type OrdersFilters = {
   query: string;
@@ -17,7 +18,7 @@ export type OrdersFilters = {
 export type OrderRecord = {
   id: number;
   externalId: string;
-  status: Exclude<OrderStatus, 'all'>;
+  status: OrderLifecycleStatus;
   assignedTeam: string;
   createdAt: string;
 };
@@ -28,4 +29,20 @@ export type OrdersSummary = {
   processing: number;
   shipped: number;
   cancelled: number;
+};
+
+export type OrderStatusHistoryEntry = {
+  id: number;
+  previousStatus: OrderLifecycleStatus;
+  nextStatus: OrderLifecycleStatus;
+  actorEmail: string;
+  note: string | null;
+  createdAt: string;
+};
+
+export type OrderNoteRecord = {
+  id: number;
+  actorEmail: string;
+  body: string;
+  createdAt: string;
 };

@@ -7,6 +7,7 @@ export type AuthUser = {
   email: string;
   fullName: string;
   roleName: RoleName;
+  isActive: boolean;
   passwordHash: string | null;
 };
 
@@ -18,6 +19,7 @@ export async function findUserByEmail(email: string): Promise<AuthUser | null> {
       users.email,
       users.full_name as "fullName",
       roles.name as "roleName",
+      users.is_active as "isActive",
       users.password_hash as "passwordHash"
     from users
     inner join roles on roles.id = users.role_id
@@ -35,15 +37,16 @@ export async function upsertLocalAdminUser(input: {
 }): Promise<void> {
   const sql = getSql();
   await sql`
-    insert into users (email, full_name, role_id, password_hash)
-    select ${input.email}, ${input.fullName}, roles.id, ${input.passwordHash}
+    insert into users (email, full_name, role_id, password_hash, is_active)
+    select ${input.email}, ${input.fullName}, roles.id, ${input.passwordHash}, true
     from roles
     where roles.name = 'admin'
     on conflict (email)
     do update set
       full_name = excluded.full_name,
       role_id = excluded.role_id,
-      password_hash = excluded.password_hash
+      password_hash = excluded.password_hash,
+      is_active = excluded.is_active
   `;
 }
 
@@ -73,6 +76,7 @@ export async function getUserBySessionToken(
       users.email,
       users.full_name as "fullName",
       roles.name as "roleName",
+      users.is_active as "isActive",
       users.password_hash as "passwordHash"
     from sessions
     inner join users on users.id = sessions.user_id

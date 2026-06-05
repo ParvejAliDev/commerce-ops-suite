@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import { getRolePermissions, type Permission, type RoleName } from '../rbac';
-import { canAccessOrders } from './access';
+import { canAccessOrders, canAccessReports, canAccessUsers } from './access';
 import { getSessionCookieValue, setSessionCookie } from './cookies';
 import {
   createUserSession,
@@ -36,7 +36,7 @@ export async function authenticateUser(
 ): Promise<CurrentUser | null> {
   const user = await findUserByEmail(email);
 
-  if (!user?.passwordHash) {
+  if (!user?.passwordHash || !user.isActive) {
     return null;
   }
 
@@ -67,7 +67,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   }
 
   const user = await getUserBySessionToken(sessionToken);
-  return user ? toCurrentUser(user) : null;
+  return user?.isActive ? toCurrentUser(user) : null;
 }
 
 export async function requireCurrentUser(): Promise<CurrentUser> {
@@ -82,6 +82,24 @@ export async function requireCurrentUser(): Promise<CurrentUser> {
 export async function requireOrdersAccess(): Promise<CurrentUser> {
   const user = await requireCurrentUser();
   if (!canAccessOrders(user)) {
+    redirect('/login?error=forbidden');
+  }
+
+  return user;
+}
+
+export async function requireUsersAccess(): Promise<CurrentUser> {
+  const user = await requireCurrentUser();
+  if (!canAccessUsers(user)) {
+    redirect('/login?error=forbidden');
+  }
+
+  return user;
+}
+
+export async function requireReportsAccess(): Promise<CurrentUser> {
+  const user = await requireCurrentUser();
+  if (!canAccessReports(user)) {
     redirect('/login?error=forbidden');
   }
 

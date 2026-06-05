@@ -1,12 +1,13 @@
 import Link from 'next/link';
 
+import { canAccessUsers } from '../../src/modules/auth/access';
+import { requireOrdersAccess } from '../../src/modules/auth/current-user';
 import {
   createOrdersEmptyStateMessage,
   listOrders,
   orderStatuses,
   parseOrdersFilters,
 } from '../../src/modules/orders';
-import { requireOrdersAccess } from '../../src/modules/auth/current-user';
 
 type OrdersPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -46,9 +47,22 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
       <h1 style={{ fontSize: '2.8rem', marginBottom: '0.5rem' }}>
         Welcome, {user.fullName}
       </h1>
-      <p style={{ lineHeight: 1.7, marginBottom: '1.5rem' }}>
+      <p style={{ lineHeight: 1.7, marginBottom: '1rem' }}>
         Signed in as <strong>{user.email}</strong> with role{' '}
         <strong>{user.roleName}</strong>.
+      </p>
+      <p
+        style={{
+          display: 'flex',
+          gap: '1rem',
+          flexWrap: 'wrap',
+          marginBottom: '1.5rem',
+        }}
+      >
+        <Link href="/reports">Reports workspace</Link>
+        {canAccessUsers(user) ? (
+          <Link href="/users">Users workspace</Link>
+        ) : null}
       </p>
 
       <section
@@ -165,7 +179,9 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
                   style={{ borderBottom: '1px solid #eee7db' }}
                 >
                   <td style={{ padding: '0.9rem 0.5rem' }}>
-                    {order.externalId}
+                    <Link href={`/orders/${order.externalId}`}>
+                      {order.externalId}
+                    </Link>
                   </td>
                   <td style={{ padding: '0.9rem 0.5rem' }}>
                     {order.status.replaceAll('_', ' ')}
