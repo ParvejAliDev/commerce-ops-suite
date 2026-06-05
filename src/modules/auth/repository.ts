@@ -1,4 +1,4 @@
-import { sql } from '../../lib/db';
+import { getSql } from '../../lib/db';
 import type { RoleName } from '../rbac';
 import { hashSessionToken } from './session';
 
@@ -11,6 +11,7 @@ export type AuthUser = {
 };
 
 export async function findUserByEmail(email: string): Promise<AuthUser | null> {
+  const sql = getSql();
   const result = await sql<AuthUser[]>`
     select
       users.id,
@@ -32,6 +33,7 @@ export async function upsertLocalAdminUser(input: {
   fullName: string;
   passwordHash: string;
 }): Promise<void> {
+  const sql = getSql();
   await sql`
     insert into users (email, full_name, role_id, password_hash)
     select ${input.email}, ${input.fullName}, roles.id, ${input.passwordHash}
@@ -50,6 +52,7 @@ export async function createUserSession(input: {
   sessionToken: string;
   expiresAt: Date;
 }): Promise<void> {
+  const sql = getSql();
   await sql`
     insert into sessions (user_id, session_token_hash, expires_at)
     values (
@@ -63,6 +66,7 @@ export async function createUserSession(input: {
 export async function getUserBySessionToken(
   sessionToken: string,
 ): Promise<AuthUser | null> {
+  const sql = getSql();
   const result = await sql<AuthUser[]>`
     select
       users.id,
@@ -84,6 +88,7 @@ export async function getUserBySessionToken(
 export async function deleteSessionByToken(
   sessionToken: string,
 ): Promise<void> {
+  const sql = getSql();
   await sql`
     delete from sessions
     where session_token_hash = ${hashSessionToken(sessionToken)}

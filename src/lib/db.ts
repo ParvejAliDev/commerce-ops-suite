@@ -13,8 +13,17 @@ function createSql() {
   });
 }
 
-export const sql = globalForDb.__commerceOpsSql ?? createSql();
+export function getSql() {
+  if (!globalForDb.__commerceOpsSql) {
+    globalForDb.__commerceOpsSql = createSql();
+  }
 
-if (process.env.NODE_ENV !== 'production') {
-  globalForDb.__commerceOpsSql = sql;
+  return globalForDb.__commerceOpsSql;
+}
+
+export async function endSql() {
+  if (globalForDb.__commerceOpsSql) {
+    await globalForDb.__commerceOpsSql.end();
+    globalForDb.__commerceOpsSql = undefined;
+  }
 }

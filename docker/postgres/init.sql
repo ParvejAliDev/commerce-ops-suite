@@ -52,5 +52,9 @@ where roles.name = 'admin'
 on conflict (email) do nothing;
 
 insert into orders (external_id, status, assigned_team)
-values ('ORD-1001', 'pending_review', 'ops-core')
+values
+  ('ORD-1001', 'pending_review', 'ops-core'),
+  ('ORD-1002', 'processing', 'ops-core'),
+  ('ORD-1003', 'shipped', 'warehouse-east'),
+  ('ORD-1004', 'cancelled', 'ops-escalations')
 on conflict (external_id) do nothing;

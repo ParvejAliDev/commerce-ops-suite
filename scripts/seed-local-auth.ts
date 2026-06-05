@@ -1,12 +1,13 @@
 import 'dotenv/config';
 
+import { endSql, getSql } from '../src/lib/db';
 import { getEnv } from '../src/lib/env';
-import { sql } from '../src/lib/db';
 import { hashPassword } from '../src/modules/auth/password';
 import { upsertLocalAdminUser } from '../src/modules/auth/repository';
 
 async function main() {
   const env = getEnv(process.env);
+  const sql = getSql();
   const passwordHash = await hashPassword(env.LOCAL_ADMIN_PASSWORD);
 
   await sql`
@@ -22,11 +23,11 @@ async function main() {
   });
 
   console.log('Seeded local admin user', env.LOCAL_ADMIN_EMAIL);
-  await sql.end();
+  await endSql();
 }
 
 main().catch(async (error) => {
   console.error(error);
-  await sql.end();
+  await endSql();
   process.exit(1);
 });

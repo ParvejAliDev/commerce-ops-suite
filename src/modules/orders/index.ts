@@ -1,9 +1,9 @@
-export const orderModuleOverview = {
-  name: 'orders',
-  responsibilities: [
-    'list orders',
-    'filter by status',
-    'track status changes',
-    'capture operational notes',
-  ],
-};
+export { createOrdersEmptyStateMessage, parseOrdersFilters } from './filters';
+export { listOrders, summarizeOrders } from './repository';
+export type {
+  OrderFilterStatus,
+  OrderRecord,
+  OrdersFilters,
+  OrdersSummary,
+} from './types';
+export { orderStatuses } from './types';
