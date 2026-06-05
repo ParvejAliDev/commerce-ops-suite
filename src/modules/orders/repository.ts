@@ -1,4 +1,7 @@
-import { getSql } from '../../lib/db';
+import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
+
+import { orderNotes, orders, orderStatusHistory } from '../../db/schema';
+import { getDb } from '../../lib/db';
 import { serializeTimestamp, type TimestampInput } from '../../lib/timestamps';
 import { canTransitionOrderStatus, getNextOrderStatuses } from './status';
 import type {
@@ -41,6 +44,30 @@ type OrderNoteRow = Omit<OrderNoteRecord, 'createdAt'> & {
   createdAt: TimestampInput;
 };
 
+const orderSelection = {
+  assignedTeam: orders.assignedTeam,
+  createdAt: orders.createdAt,
+  externalId: orders.externalId,
+  id: orders.id,
+  status: orders.status,
+} as const;
+
+const orderStatusHistorySelection = {
+  actorEmail: orderStatusHistory.actorEmail,
+  createdAt: orderStatusHistory.createdAt,
+  id: orderStatusHistory.id,
+  nextStatus: orderStatusHistory.nextStatus,
+  note: orderStatusHistory.note,
+  previousStatus: orderStatusHistory.previousStatus,
+} as const;
+
+const orderNoteSelection = {
+  actorEmail: orderNotes.actorEmail,
+  body: orderNotes.body,
+  createdAt: orderNotes.createdAt,
+  id: orderNotes.id,
+} as const;
+
 function mapOrderRow(row: OrderRow): OrderRecord {
   return {
     ...row,
@@ -68,27 +95,28 @@ export async function listOrders(filters: OrdersFilters): Promise<{
   rows: OrderRecord[];
   summary: OrdersSummary;
 }> {
-  const sql = getSql();
-  const statusClause =
-    filters.status === 'all' ? sql`` : sql`and status = ${filters.status}`;
-  const queryValue = filters.query ? `%${filters.query}%` : null;
-  const queryClause = queryValue
-    ? sql`and (external_id ilike ${queryValue} or assigned_team ilike ${queryValue})`
-    : sql``;
+  const db = getDb();
+  const conditions = [];
 
-  const rows = await sql<OrderRow[]>`
-    select
-      id,
-      external_id as "externalId",
-      status,
-      assigned_team as "assignedTeam",
-      created_at as "createdAt"
-    from orders
-    where 1 = 1
-    ${statusClause}
-    ${queryClause}
-    order by created_at desc, id desc
-  `;
+  if (filters.status !== 'all') {
+    conditions.push(eq(orders.status, filters.status));
+  }
+
+  if (filters.query) {
+    const queryValue = `%${filters.query}%`;
+    conditions.push(
+      or(
+        ilike(orders.externalId, queryValue),
+        ilike(orders.assignedTeam, queryValue),
+      )!,
+    );
+  }
+
+  const rows = await db
+    .select(orderSelection)
+    .from(orders)
+    .where(conditions.length === 0 ? undefined : and(...conditions))
+    .orderBy(desc(orders.createdAt), desc(orders.id));
   const records = rows.map(mapOrderRow);
 
   return {
@@ -98,14 +126,14 @@ export async function listOrders(filters: OrdersFilters): Promise<{
 }
 
 export async function countOrdersByStatus(): Promise<OrdersSummary> {
-  const sql = getSql();
-  const rows = await sql<
-    Array<{ status: OrderLifecycleStatus; count: string }>
-  >`
-    select status, count(*)::text as count
-    from orders
-    group by status
-  `;
+  const db = getDb();
+  const rows = await db
+    .select({
+      count: sql<string>`count(*)::text`,
+      status: orders.status,
+    })
+    .from(orders)
+    .groupBy(orders.status);
 
   return rows.reduce<OrdersSummary>(
     (summary, row) => {
@@ -126,18 +154,12 @@ export async function countOrdersByStatus(): Promise<OrdersSummary> {
 export async function getOrderByExternalId(
   externalId: string,
 ): Promise<OrderRecord | null> {
-  const sql = getSql();
-  const rows = await sql<OrderRow[]>`
-    select
-      id,
-      external_id as "externalId",
-      status,
-      assigned_team as "assignedTeam",
-      created_at as "createdAt"
-    from orders
-    where external_id = ${externalId}
-    limit 1
-  `;
+  const db = getDb();
+  const rows = await db
+    .select(orderSelection)
+    .from(orders)
+    .where(eq(orders.externalId, externalId))
+    .limit(1);
 
   const row = rows[0];
   return row ? mapOrderRow(row) : null;
@@ -146,20 +168,12 @@ export async function getOrderByExternalId(
 export async function listOrderStatusHistory(
   orderId: number,
 ): Promise<OrderStatusHistoryEntry[]> {
-  const sql = getSql();
-
-  const rows = await sql<OrderStatusHistoryRow[]>`
-    select
-      id,
-      previous_status as "previousStatus",
-      next_status as "nextStatus",
-      actor_email as "actorEmail",
-      note,
-      created_at as "createdAt"
-    from order_status_history
-    where order_id = ${orderId}
-    order by created_at desc, id desc
-  `;
+  const db = getDb();
+  const rows = await db
+    .select(orderStatusHistorySelection)
+    .from(orderStatusHistory)
+    .where(eq(orderStatusHistory.orderId, orderId))
+    .orderBy(desc(orderStatusHistory.createdAt), desc(orderStatusHistory.id));
 
   return rows.map(mapOrderStatusHistoryRow);
 }
@@ -167,18 +181,12 @@ export async function listOrderStatusHistory(
 export async function listOrderNotes(
   orderId: number,
 ): Promise<OrderNoteRecord[]> {
-  const sql = getSql();
-
-  const rows = await sql<OrderNoteRow[]>`
-    select
-      id,
-      actor_email as "actorEmail",
-      body,
-      created_at as "createdAt"
-    from order_notes
-    where order_id = ${orderId}
-    order by created_at desc, id desc
-  `;
+  const db = getDb();
+  const rows = await db
+    .select(orderNoteSelection)
+    .from(orderNotes)
+    .where(eq(orderNotes.orderId, orderId))
+    .orderBy(desc(orderNotes.createdAt), desc(orderNotes.id));
 
   return rows.map(mapOrderNoteRow);
 }
@@ -190,40 +198,31 @@ export async function updateOrderStatus(input: {
   actorEmail: string;
   note?: string;
 }): Promise<boolean> {
-  const sql = getSql();
+  const db = getDb();
 
   if (!canTransitionOrderStatus(input.currentStatus, input.nextStatus)) {
     return false;
   }
 
-  const updatedRows = await sql<Array<{ id: number }>>`
-    update orders
-    set status = ${input.nextStatus}
-    where id = ${input.orderId}
-      and status = ${input.currentStatus}
-    returning id
-  `;
+  const updatedRows = await db
+    .update(orders)
+    .set({ status: input.nextStatus })
+    .where(
+      and(eq(orders.id, input.orderId), eq(orders.status, input.currentStatus)),
+    )
+    .returning({ id: orders.id });
 
   if (updatedRows.length === 0) {
     return false;
   }
 
-  await sql`
-    insert into order_status_history (
-      order_id,
-      previous_status,
-      next_status,
-      actor_email,
-      note
-    )
-    values (
-      ${input.orderId},
-      ${input.currentStatus},
-      ${input.nextStatus},
-      ${input.actorEmail},
-      ${input.note ?? null}
-    )
-  `;
+  await db.insert(orderStatusHistory).values({
+    actorEmail: input.actorEmail,
+    nextStatus: input.nextStatus,
+    note: input.note ?? null,
+    orderId: input.orderId,
+    previousStatus: input.currentStatus,
+  });
 
   return true;
 }
@@ -233,12 +232,13 @@ export async function addOrderNote(input: {
   actorEmail: string;
   body: string;
 }): Promise<void> {
-  const sql = getSql();
+  const db = getDb();
 
-  await sql`
-    insert into order_notes (order_id, actor_email, body)
-    values (${input.orderId}, ${input.actorEmail}, ${input.body})
-  `;
+  await db.insert(orderNotes).values({
+    actorEmail: input.actorEmail,
+    body: input.body,
+    orderId: input.orderId,
+  });
 }
 
 export async function getOrderWorkflowDetail(externalId: string): Promise<{

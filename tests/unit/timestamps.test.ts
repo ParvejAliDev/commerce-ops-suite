@@ -7,9 +7,9 @@ import {
 
 describe('serializeTimestamp', () => {
   it('returns an ISO string for Date values', () => {
-    expect(
-      serializeTimestamp(new Date('2026-06-05T08:12:17.976Z')),
-    ).toBe('2026-06-05T08:12:17.976Z');
+    expect(serializeTimestamp(new Date('2026-06-05T08:12:17.976Z'))).toBe(
+      '2026-06-05T08:12:17.976Z',
+    );
   });
 
   it('normalizes database timestamps that omit timezone minutes', () => {

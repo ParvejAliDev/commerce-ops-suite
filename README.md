@@ -9,6 +9,13 @@ Local-first internal operations dashboard.
 3. Run `npm run seed`.
 4. Open `http://localhost:3000`.
 
+## Database Tooling
+
+- `npm run db:generate` creates SQL migrations from the Drizzle schema.
+- `npm run db:push` syncs the local schema to the database defined by `DATABASE_URL`.
+- `npm run db:pull` introspects the current database shape.
+- `npm run db:studio` opens Drizzle Studio against the local database.
+
 ## Seeded Credentials
 
 - Admin: `admin.local@example.com`

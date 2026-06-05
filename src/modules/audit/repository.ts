@@ -1,4 +1,7 @@
-import { getSql } from '../../lib/db';
+import { and, desc, eq } from 'drizzle-orm';
+
+import { auditLogs } from '../../db/schema';
+import { getDb } from '../../lib/db';
 import { serializeTimestamp, type TimestampInput } from '../../lib/timestamps';
 import type { AuditEntry } from './index';
 
@@ -6,14 +9,26 @@ type AuditRecord = AuditEntry & {
   id: number;
 };
 
-type AuditRow = Omit<AuditRecord, 'createdAt'> & {
+type AuditRow = Omit<AuditRecord, 'createdAt' | 'details'> & {
   createdAt: TimestampInput;
+  details: string | null;
 };
+
+const auditSelection = {
+  action: auditLogs.action,
+  actorEmail: auditLogs.actorEmail,
+  createdAt: auditLogs.createdAt,
+  details: auditLogs.details,
+  id: auditLogs.id,
+  targetId: auditLogs.targetId,
+  targetType: auditLogs.targetType,
+} as const;
 
 function mapAuditRow(row: AuditRow): AuditRecord {
   return {
     ...row,
     createdAt: serializeTimestamp(row.createdAt),
+    details: row.details ?? '',
   };
 }
 
@@ -24,46 +39,32 @@ export async function recordAuditEntry(input: {
   targetId: string;
   details: string;
 }): Promise<void> {
-  const sql = getSql();
+  const db = getDb();
 
-  await sql`
-    insert into audit_logs (
-      actor_email,
-      action,
-      target_type,
-      target_id,
-      details
-    )
-    values (
-      ${input.actorEmail},
-      ${input.action},
-      ${input.targetType},
-      ${input.targetId},
-      ${input.details}
-    )
-  `;
+  await db.insert(auditLogs).values({
+    action: input.action,
+    actorEmail: input.actorEmail,
+    details: input.details,
+    targetId: input.targetId,
+    targetType: input.targetType,
+  });
 }
 
 export async function listAuditEntriesForTarget(
   targetType: string,
   targetId: string,
 ): Promise<AuditRecord[]> {
-  const sql = getSql();
-
-  const rows = await sql<AuditRow[]>`
-    select
-      id,
-      actor_email as "actorEmail",
-      action,
-      target_type as "targetType",
-      target_id as "targetId",
-      coalesce(details, '') as details,
-      created_at as "createdAt"
-    from audit_logs
-    where target_type = ${targetType}
-      and target_id = ${targetId}
-    order by created_at desc, id desc
-  `;
+  const db = getDb();
+  const rows = await db
+    .select(auditSelection)
+    .from(auditLogs)
+    .where(
+      and(
+        eq(auditLogs.targetType, targetType),
+        eq(auditLogs.targetId, targetId),
+      ),
+    )
+    .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id));
 
   return rows.map(mapAuditRow);
 }
@@ -71,21 +72,12 @@ export async function listAuditEntriesForTarget(
 export async function listRecentAuditEntries(
   limit = 20,
 ): Promise<AuditRecord[]> {
-  const sql = getSql();
-
-  const rows = await sql<AuditRow[]>`
-    select
-      id,
-      actor_email as "actorEmail",
-      action,
-      target_type as "targetType",
-      target_id as "targetId",
-      coalesce(details, '') as details,
-      created_at as "createdAt"
-    from audit_logs
-    order by created_at desc, id desc
-    limit ${limit}
-  `;
+  const db = getDb();
+  const rows = await db
+    .select(auditSelection)
+    .from(auditLogs)
+    .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+    .limit(limit);
 
   return rows.map(mapAuditRow);
 }

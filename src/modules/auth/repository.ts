@@ -1,4 +1,7 @@
-import { getSql } from '../../lib/db';
+import { and, eq, gt, sql } from 'drizzle-orm';
+
+import { roles, sessions, users } from '../../db/schema';
+import { getDb } from '../../lib/db';
 import type { RoleName } from '../rbac';
 import { hashSessionToken } from './session';
 
@@ -11,23 +14,41 @@ export type AuthUser = {
   passwordHash: string | null;
 };
 
-export async function findUserByEmail(email: string): Promise<AuthUser | null> {
-  const sql = getSql();
-  const result = await sql<AuthUser[]>`
-    select
-      users.id,
-      users.email,
-      users.full_name as "fullName",
-      roles.name as "roleName",
-      users.is_active as "isActive",
-      users.password_hash as "passwordHash"
-    from users
-    inner join roles on roles.id = users.role_id
-    where lower(users.email) = lower(${email})
-    limit 1
-  `;
+const authUserSelection = {
+  email: users.email,
+  fullName: users.fullName,
+  id: users.id,
+  isActive: users.isActive,
+  passwordHash: users.passwordHash,
+  roleName: roles.name,
+} as const;
 
-  return result[0] ?? null;
+async function getRoleId(roleName: RoleName): Promise<number> {
+  const db = getDb();
+  const rows = await db
+    .select({ id: roles.id })
+    .from(roles)
+    .where(eq(roles.name, roleName))
+    .limit(1);
+  const row = rows[0];
+
+  if (!row) {
+    throw new Error(`Missing role: ${roleName}`);
+  }
+
+  return row.id;
+}
+
+export async function findUserByEmail(email: string): Promise<AuthUser | null> {
+  const db = getDb();
+  const rows = await db
+    .select(authUserSelection)
+    .from(users)
+    .innerJoin(roles, eq(roles.id, users.roleId))
+    .where(sql`lower(${users.email}) = lower(${email})`)
+    .limit(1);
+
+  return rows[0] ?? null;
 }
 
 export async function upsertLocalAdminUser(input: {
@@ -35,19 +56,27 @@ export async function upsertLocalAdminUser(input: {
   fullName: string;
   passwordHash: string;
 }): Promise<void> {
-  const sql = getSql();
-  await sql`
-    insert into users (email, full_name, role_id, password_hash, is_active)
-    select ${input.email}, ${input.fullName}, roles.id, ${input.passwordHash}, true
-    from roles
-    where roles.name = 'admin'
-    on conflict (email)
-    do update set
-      full_name = excluded.full_name,
-      role_id = excluded.role_id,
-      password_hash = excluded.password_hash,
-      is_active = excluded.is_active
-  `;
+  const db = getDb();
+  const adminRoleId = await getRoleId('admin');
+
+  await db
+    .insert(users)
+    .values({
+      email: input.email,
+      fullName: input.fullName,
+      isActive: true,
+      passwordHash: input.passwordHash,
+      roleId: adminRoleId,
+    })
+    .onConflictDoUpdate({
+      set: {
+        fullName: input.fullName,
+        isActive: true,
+        passwordHash: input.passwordHash,
+        roleId: adminRoleId,
+      },
+      target: users.email,
+    });
 }
 
 export async function createUserSession(input: {
@@ -55,46 +84,41 @@ export async function createUserSession(input: {
   sessionToken: string;
   expiresAt: Date;
 }): Promise<void> {
-  const sql = getSql();
-  await sql`
-    insert into sessions (user_id, session_token_hash, expires_at)
-    values (
-      ${input.userId},
-      ${hashSessionToken(input.sessionToken)},
-      ${input.expiresAt.toISOString()}
-    )
-  `;
+  const db = getDb();
+
+  await db.insert(sessions).values({
+    expiresAt: input.expiresAt,
+    sessionTokenHash: hashSessionToken(input.sessionToken),
+    userId: input.userId,
+  });
 }
 
 export async function getUserBySessionToken(
   sessionToken: string,
 ): Promise<AuthUser | null> {
-  const sql = getSql();
-  const result = await sql<AuthUser[]>`
-    select
-      users.id,
-      users.email,
-      users.full_name as "fullName",
-      roles.name as "roleName",
-      users.is_active as "isActive",
-      users.password_hash as "passwordHash"
-    from sessions
-    inner join users on users.id = sessions.user_id
-    inner join roles on roles.id = users.role_id
-    where sessions.session_token_hash = ${hashSessionToken(sessionToken)}
-      and sessions.expires_at > now()
-    limit 1
-  `;
+  const db = getDb();
+  const rows = await db
+    .select(authUserSelection)
+    .from(sessions)
+    .innerJoin(users, eq(users.id, sessions.userId))
+    .innerJoin(roles, eq(roles.id, users.roleId))
+    .where(
+      and(
+        eq(sessions.sessionTokenHash, hashSessionToken(sessionToken)),
+        gt(sessions.expiresAt, sql`now()`),
+      ),
+    )
+    .limit(1);
 
-  return result[0] ?? null;
+  return rows[0] ?? null;
 }
 
 export async function deleteSessionByToken(
   sessionToken: string,
 ): Promise<void> {
-  const sql = getSql();
-  await sql`
-    delete from sessions
-    where session_token_hash = ${hashSessionToken(sessionToken)}
-  `;
+  const db = getDb();
+
+  await db
+    .delete(sessions)
+    .where(eq(sessions.sessionTokenHash, hashSessionToken(sessionToken)));
 }
