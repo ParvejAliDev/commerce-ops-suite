@@ -31,3 +31,7 @@ Local-first internal operations dashboard.
 - `/users` provides local access administration for admin users.
 - `/reports` queues CSV export jobs for the worker to process.
 - `/api/health`, `/api/ready`, and `/api/metrics` expose operational status.
+
+## Smoke Check
+
+- `npm run smoke` boots an isolated Docker Compose stack, verifies a seeded login plus report-worker flow, and tears the stack down automatically.
