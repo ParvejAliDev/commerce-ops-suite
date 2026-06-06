@@ -1,13 +1,12 @@
 export const REPORTS_AUTO_REFRESH_INTERVAL_MS = 10000;
 
-type ReportsAutoRefreshInterval = ReturnType<typeof globalThis.setInterval> | number;
+type ReportsAutoRefreshInterval =
+  | ReturnType<typeof globalThis.setInterval>
+  | number;
 
 type ReportsAutoRefreshDocument = {
   visibilityState: string;
-  addEventListener: (
-    event: 'visibilitychange',
-    listener: () => void,
-  ) => void;
+  addEventListener: (event: 'visibilitychange', listener: () => void) => void;
   removeEventListener: (
     event: 'visibilitychange',
     listener: () => void,
@@ -41,7 +40,9 @@ export function setupReportsAutoRefresh(input: {
   const clearIntervalFn =
     input.clearIntervalFn ??
     ((intervalId: ReportsAutoRefreshInterval) =>
-      globalThis.clearInterval(intervalId as ReturnType<typeof globalThis.setInterval>));
+      globalThis.clearInterval(
+        intervalId as ReturnType<typeof globalThis.setInterval>,
+      ));
 
   const refreshIfVisible = () => {
     if (isReportsAutoRefreshVisible(input.document.visibilityState)) {
