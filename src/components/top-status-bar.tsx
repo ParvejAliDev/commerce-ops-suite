@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { logoutAction } from '@/app/(workspace)/actions';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
 import { Separator } from '@/src/components/ui/separator';
@@ -28,6 +29,11 @@ export function TopStatusBar({ user }: { user: CurrentUser }) {
           <Button asChild variant="ghost" size="sm">
             <Link href="/api/metrics">Metrics</Link>
           </Button>
+          <form action={logoutAction}>
+            <Button type="submit" variant="outline" size="sm">
+              Log out
+            </Button>
+          </form>
         </div>
       </div>
     </header>

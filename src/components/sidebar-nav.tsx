@@ -95,10 +95,6 @@ export function SidebarNav({ user, mobile = false }: SidebarNavProps) {
             <Activity className="size-3.5" />
             Local runtime
           </div>
-          <p className="leading-6 text-sidebar-foreground/80">
-            Docker Compose is the source of truth for local web, worker,
-            Postgres, and Redis services.
-          </p>
         </div>
       ) : null}
     </div>
