@@ -3,6 +3,7 @@ import { Fragment } from 'react';
 import { ArrowLeft, ArrowRight, FileSpreadsheet } from 'lucide-react';
 
 import { DataTableCard } from '@/src/components/data-table-card';
+import { ReportsAutoRefresh } from '@/src/components/reports-auto-refresh';
 import { MetricCard } from '@/src/components/metric-card';
 import { PageHeader } from '@/src/components/page-header';
 import { SectionPanel } from '@/src/components/section-panel';
@@ -86,9 +87,12 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
       jobCounts.failed,
     ...jobCounts,
   };
+  const shouldAutoRefresh =
+    jobCounts.pending > 0 || jobCounts.processing > 0;
 
   return (
     <div className="flex flex-col gap-6">
+      <ReportsAutoRefresh enabled={shouldAutoRefresh} />
       <PageHeader
         eyebrow="Reports workspace"
         title="Queue local CSV exports"
