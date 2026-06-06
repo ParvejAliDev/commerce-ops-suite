@@ -325,11 +325,8 @@ export async function countReportJobsByStatus(): Promise<
     .from(reportJobs)
     .groupBy(reportJobs.status);
 
-  return rows.reduce<Record<ReportJobStatus, number>>(
-    (summary, row) => {
-      summary[row.status] = Number(row.count);
-      return summary;
-    },
-    createEmptyReportJobCounts(),
-  );
+  return rows.reduce<Record<ReportJobStatus, number>>((summary, row) => {
+    summary[row.status] = Number(row.count);
+    return summary;
+  }, createEmptyReportJobCounts());
 }

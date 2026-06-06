@@ -54,17 +54,17 @@ describe('resolveOrdersPagination', () => {
   });
 
   it('keeps empty result sets on page 1', () => {
-    expect(resolveOrdersPagination({ requestedPage: 4, totalItems: 0 })).toEqual(
-      {
-        endItem: 0,
-        hasNextPage: false,
-        hasPreviousPage: false,
-        page: 1,
-        pageSize: DEFAULT_ORDERS_PAGE_SIZE,
-        startItem: 0,
-        totalItems: 0,
-        totalPages: 1,
-      },
-    );
+    expect(
+      resolveOrdersPagination({ requestedPage: 4, totalItems: 0 }),
+    ).toEqual({
+      endItem: 0,
+      hasNextPage: false,
+      hasPreviousPage: false,
+      page: 1,
+      pageSize: DEFAULT_ORDERS_PAGE_SIZE,
+      startItem: 0,
+      totalItems: 0,
+      totalPages: 1,
+    });
   });
 });

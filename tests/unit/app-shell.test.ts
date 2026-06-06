@@ -27,7 +27,10 @@ type LayoutElement = ReactElement<{
 
 describe('AppShell', () => {
   it('locks the workspace shell to the viewport and scrolls only the main pane', () => {
-    const shell = AppShell({ user, children: 'Orders workspace' }) as LayoutElement;
+    const shell = AppShell({
+      user,
+      children: 'Orders workspace',
+    }) as LayoutElement;
     const grid = shell.props.children as LayoutElement;
     const [aside, contentColumn] = grid.props.children as LayoutElement[];
     const [, , main] = contentColumn.props.children as LayoutElement[];

@@ -28,14 +28,11 @@ function createEmptyOrdersSummary(): OrdersSummary {
 export function summarizeOrders(
   rows: Pick<OrderRecord, 'status'>[],
 ): OrdersSummary {
-  return rows.reduce<OrdersSummary>(
-    (summary, row) => {
-      summary.total += 1;
-      summary[row.status] += 1;
-      return summary;
-    },
-    createEmptyOrdersSummary(),
-  );
+  return rows.reduce<OrdersSummary>((summary, row) => {
+    summary.total += 1;
+    summary[row.status] += 1;
+    return summary;
+  }, createEmptyOrdersSummary());
 }
 
 type OrderRow = Omit<OrderRecord, 'createdAt'> & {
