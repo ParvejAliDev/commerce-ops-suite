@@ -8,10 +8,12 @@ import {
   type TimestampInput,
 } from '../../lib/timestamps';
 import type { OrderRecord } from '../orders';
+import { resolveReportJobsPagination } from './pagination';
 import type {
   ReportDefinition,
   ReportFilters,
   ReportJob,
+  ReportJobsPagination,
   ReportJobStatus,
 } from './index';
 
@@ -92,6 +94,15 @@ function mapExportOrderRow(
   };
 }
 
+function createEmptyReportJobCounts(): Record<ReportJobStatus, number> {
+  return {
+    pending: 0,
+    processing: 0,
+    completed: 0,
+    failed: 0,
+  };
+}
+
 export async function listReportDefinitions(): Promise<ReportDefinition[]> {
   const db = getDb();
   const rows = await db
@@ -102,16 +113,34 @@ export async function listReportDefinitions(): Promise<ReportDefinition[]> {
   return rows.map(mapReportDefinitionRow);
 }
 
-export async function listReportJobs(limit = 20): Promise<ReportJob[]> {
+export async function listReportJobs({
+  page = 1,
+}: {
+  page?: number;
+} = {}): Promise<{
+  rows: ReportJob[];
+  pagination: ReportJobsPagination;
+}> {
   const db = getDb();
+  const totalRows = await db
+    .select({ total: sql<string>`count(*)::text` })
+    .from(reportJobs);
+  const pagination = resolveReportJobsPagination({
+    requestedPage: page,
+    totalItems: Number(totalRows[0]?.total ?? 0),
+  });
   const rows = await db
     .select(reportJobSelection)
     .from(reportJobs)
     .innerJoin(reports, eq(reports.id, reportJobs.reportId))
     .orderBy(desc(reportJobs.createdAt), desc(reportJobs.id))
-    .limit(limit);
+    .limit(pagination.pageSize)
+    .offset((pagination.page - 1) * pagination.pageSize);
 
-  return rows.map(mapReportJobRow);
+  return {
+    pagination,
+    rows: rows.map(mapReportJobRow),
+  };
 }
 
 export async function queueReportJob(input: {
@@ -301,11 +330,6 @@ export async function countReportJobsByStatus(): Promise<
       summary[row.status] = Number(row.count);
       return summary;
     },
-    {
-      pending: 0,
-      processing: 0,
-      completed: 0,
-      failed: 0,
-    },
+    createEmptyReportJobCounts(),
   );
 }

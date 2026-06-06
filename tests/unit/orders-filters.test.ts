@@ -8,6 +8,7 @@ import {
 describe('parseOrdersFilters', () => {
   it('normalizes invalid statuses back to all', () => {
     expect(parseOrdersFilters({ status: 'bad-status' })).toEqual({
+      page: 1,
       query: '',
       status: 'all',
     });
@@ -17,6 +18,7 @@ describe('parseOrdersFilters', () => {
     expect(
       parseOrdersFilters({ query: '  ORD-1001  ', status: 'shipped' }),
     ).toEqual({
+      page: 1,
       query: 'ORD-1001',
       status: 'shipped',
     });

@@ -3,15 +3,27 @@ import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { orderNotes, orders, orderStatusHistory } from '../../db/schema';
 import { getDb } from '../../lib/db';
 import { serializeTimestamp, type TimestampInput } from '../../lib/timestamps';
+import { resolveOrdersPagination } from './pagination';
 import { canTransitionOrderStatus, getNextOrderStatuses } from './status';
 import type {
   OrderLifecycleStatus,
   OrderNoteRecord,
   OrderRecord,
   OrdersFilters,
+  OrdersPagination,
   OrdersSummary,
   OrderStatusHistoryEntry,
 } from './types';
+
+function createEmptyOrdersSummary(): OrdersSummary {
+  return {
+    total: 0,
+    pending_review: 0,
+    processing: 0,
+    shipped: 0,
+    cancelled: 0,
+  };
+}
 
 export function summarizeOrders(
   rows: Pick<OrderRecord, 'status'>[],
@@ -22,18 +34,16 @@ export function summarizeOrders(
       summary[row.status] += 1;
       return summary;
     },
-    {
-      total: 0,
-      pending_review: 0,
-      processing: 0,
-      shipped: 0,
-      cancelled: 0,
-    },
+    createEmptyOrdersSummary(),
   );
 }
 
 type OrderRow = Omit<OrderRecord, 'createdAt'> & {
   createdAt: TimestampInput;
+};
+
+type OrdersSummaryRow = {
+  [Key in keyof OrdersSummary]: string;
 };
 
 type OrderStatusHistoryRow = Omit<OrderStatusHistoryEntry, 'createdAt'> & {
@@ -50,6 +60,14 @@ const orderSelection = {
   externalId: orders.externalId,
   id: orders.id,
   status: orders.status,
+} as const;
+
+const ordersSummarySelection = {
+  total: sql<string>`count(*)::text`,
+  pending_review: sql<string>`count(*) filter (where ${orders.status} = 'pending_review')::text`,
+  processing: sql<string>`count(*) filter (where ${orders.status} = 'processing')::text`,
+  shipped: sql<string>`count(*) filter (where ${orders.status} = 'shipped')::text`,
+  cancelled: sql<string>`count(*) filter (where ${orders.status} = 'cancelled')::text`,
 } as const;
 
 const orderStatusHistorySelection = {
@@ -75,6 +93,16 @@ function mapOrderRow(row: OrderRow): OrderRecord {
   };
 }
 
+function mapOrdersSummaryRow(row?: OrdersSummaryRow): OrdersSummary {
+  return {
+    total: Number(row?.total ?? 0),
+    pending_review: Number(row?.pending_review ?? 0),
+    processing: Number(row?.processing ?? 0),
+    shipped: Number(row?.shipped ?? 0),
+    cancelled: Number(row?.cancelled ?? 0),
+  };
+}
+
 function mapOrderStatusHistoryRow(
   row: OrderStatusHistoryRow,
 ): OrderStatusHistoryEntry {
@@ -91,11 +119,7 @@ function mapOrderNoteRow(row: OrderNoteRow): OrderNoteRecord {
   };
 }
 
-export async function listOrders(filters: OrdersFilters): Promise<{
-  rows: OrderRecord[];
-  summary: OrdersSummary;
-}> {
-  const db = getDb();
+function buildOrdersWhereClause(filters: OrdersFilters) {
   const conditions = [];
 
   if (filters.status !== 'all') {
@@ -112,43 +136,46 @@ export async function listOrders(filters: OrdersFilters): Promise<{
     );
   }
 
+  return conditions.length === 0 ? undefined : and(...conditions);
+}
+
+export async function listOrders(filters: OrdersFilters): Promise<{
+  rows: OrderRecord[];
+  summary: OrdersSummary;
+  pagination: OrdersPagination;
+}> {
+  const db = getDb();
+  const whereClause = buildOrdersWhereClause(filters);
+  const summaryRows = await db
+    .select(ordersSummarySelection)
+    .from(orders)
+    .where(whereClause);
+  const summary = mapOrdersSummaryRow(summaryRows[0]);
+  const pagination = resolveOrdersPagination({
+    requestedPage: filters.page,
+    totalItems: summary.total,
+  });
+
   const rows = await db
     .select(orderSelection)
     .from(orders)
-    .where(conditions.length === 0 ? undefined : and(...conditions))
-    .orderBy(desc(orders.createdAt), desc(orders.id));
-  const records = rows.map(mapOrderRow);
+    .where(whereClause)
+    .orderBy(desc(orders.createdAt), desc(orders.id))
+    .limit(pagination.pageSize)
+    .offset((pagination.page - 1) * pagination.pageSize);
 
   return {
-    rows: records,
-    summary: summarizeOrders(records),
+    pagination,
+    rows: rows.map(mapOrderRow),
+    summary,
   };
 }
 
 export async function countOrdersByStatus(): Promise<OrdersSummary> {
   const db = getDb();
-  const rows = await db
-    .select({
-      count: sql<string>`count(*)::text`,
-      status: orders.status,
-    })
-    .from(orders)
-    .groupBy(orders.status);
+  const rows = await db.select(ordersSummarySelection).from(orders);
 
-  return rows.reduce<OrdersSummary>(
-    (summary, row) => {
-      summary.total += Number(row.count);
-      summary[row.status] = Number(row.count);
-      return summary;
-    },
-    {
-      total: 0,
-      pending_review: 0,
-      processing: 0,
-      shipped: 0,
-      cancelled: 0,
-    },
-  );
+  return mapOrdersSummaryRow(rows[0]);
 }
 
 export async function getOrderByExternalId(

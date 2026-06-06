@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, RefreshCcw, Search } from 'lucide-react';
+import { ArrowLeft, ArrowRight, RefreshCcw, Search } from 'lucide-react';
 
 import { DataTableCard } from '@/src/components/data-table-card';
 import { EmptyState } from '@/src/components/empty-state';
@@ -48,13 +48,21 @@ const summaryTones = {
   cancelled: 'destructive',
 } as const;
 
-function getStatusHref(status: string, query: string) {
+function buildOrdersHref(input: {
+  status: string;
+  query: string;
+  page?: number;
+}) {
   const params = new URLSearchParams();
-  if (status !== 'all') {
-    params.set('status', status);
+
+  if (input.status !== 'all') {
+    params.set('status', input.status);
   }
-  if (query) {
-    params.set('query', query);
+  if (input.query) {
+    params.set('query', input.query);
+  }
+  if ((input.page ?? 1) > 1) {
+    params.set('page', String(input.page));
   }
 
   const value = params.toString();
@@ -63,7 +71,7 @@ function getStatusHref(status: string, query: string) {
 
 export default async function OrdersPage({ searchParams }: OrdersPageProps) {
   const filters = parseOrdersFilters(await searchParams);
-  const [user, { rows, summary }] = await Promise.all([
+  const [user, { rows, summary, pagination }] = await Promise.all([
     requireOrdersAccess(),
     listOrders(filters),
   ]);
@@ -122,7 +130,13 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
                 variant={isActive ? 'secondary' : 'ghost'}
                 className="rounded-2xl"
               >
-                <Link href={getStatusHref(status, filters.query)}>
+                <Link
+                  href={buildOrdersHref({
+                    page: 1,
+                    query: filters.query,
+                    status,
+                  })}
+                >
                   {humanizeToken(status)}
                 </Link>
               </Button>
@@ -171,7 +185,7 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
       ) : (
         <DataTableCard
           title="Orders in scope"
-          description={`Showing ${rows.length} orders for ${humanizeToken(filters.status)}${filters.query ? ` with query "${filters.query}"` : ''}.`}
+          description={`Showing ${pagination.startItem}-${pagination.endItem} of ${pagination.totalItems} orders for ${humanizeToken(filters.status)}${filters.query ? ` with query "${filters.query}"` : ''}.`}
         >
           <Table>
             <TableHeader>
@@ -218,6 +232,62 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
               ))}
             </TableBody>
           </Table>
+
+          <div className="mt-4 flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Page {pagination.page} of {pagination.totalPages}
+            </p>
+            {pagination.totalPages > 1 ? (
+              <nav
+                className="flex items-center gap-2 self-start sm:self-auto"
+                aria-label="Orders pagination"
+              >
+                {pagination.hasPreviousPage ? (
+                  <Button asChild size="sm" variant="outline">
+                    <Link
+                      href={buildOrdersHref({
+                        page: pagination.page - 1,
+                        query: filters.query,
+                        status: filters.status,
+                      })}
+                    >
+                      <ArrowLeft data-icon="inline-start" />
+                      Previous
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" disabled>
+                    <ArrowLeft data-icon="inline-start" />
+                    Previous
+                  </Button>
+                )}
+
+                <Badge variant="outline">
+                  {pagination.startItem}-{pagination.endItem}
+                </Badge>
+
+                {pagination.hasNextPage ? (
+                  <Button asChild size="sm" variant="outline">
+                    <Link
+                      href={buildOrdersHref({
+                        page: pagination.page + 1,
+                        query: filters.query,
+                        status: filters.status,
+                      })}
+                    >
+                      Next
+                      <ArrowRight data-icon="inline-end" />
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" disabled>
+                    Next
+                    <ArrowRight data-icon="inline-end" />
+                  </Button>
+                )}
+              </nav>
+            ) : null}
+          </div>
         </DataTableCard>
       )}
     </div>

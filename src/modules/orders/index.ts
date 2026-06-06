@@ -1,4 +1,5 @@
 export { createOrdersEmptyStateMessage, parseOrdersFilters } from './filters';
+export { DEFAULT_ORDERS_PAGE_SIZE, resolveOrdersPagination } from './pagination';
 export {
   addOrderNote,
   countOrdersByStatus,
@@ -17,6 +18,7 @@ export type {
   OrderNoteRecord,
   OrderRecord,
   OrdersFilters,
+  OrdersPagination,
   OrdersSummary,
   OrderStatusHistoryEntry,
 } from './types';

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Fragment } from 'react';
-import { ArrowRight, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileSpreadsheet } from 'lucide-react';
 
 import { DataTableCard } from '@/src/components/data-table-card';
 import { MetricCard } from '@/src/components/metric-card';
@@ -22,11 +22,12 @@ import {
   formatOptionalTimestamp,
   formatTimestamp,
   humanizeToken,
-  summarizeReportJobs,
 } from '@/src/lib/presenters';
 import { requireReportsAccess } from '@/src/modules/auth/current-user';
 import { orderStatuses } from '@/src/modules/orders';
+import { parseReportJobsPage } from '@/src/modules/reports/pagination';
 import {
+  countReportJobsByStatus,
   listReportDefinitions,
   listReportJobs,
 } from '@/src/modules/reports/repository';
@@ -36,13 +37,55 @@ import { queueReportJobAction } from './actions';
 const selectClassName =
   'h-8 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50';
 
-export default async function ReportsPage() {
-  const user = await requireReportsAccess();
-  const [definitions, jobs] = await Promise.all([
-    listReportDefinitions(),
-    listReportJobs(),
-  ]);
-  const jobSummary = summarizeReportJobs(jobs);
+const summaryLabels = {
+  total: 'Total jobs',
+  pending: 'Pending',
+  processing: 'Processing',
+  completed: 'Completed',
+  failed: 'Failed',
+} as const;
+
+const summaryTones = {
+  total: 'neutral',
+  pending: 'warning',
+  processing: 'primary',
+  completed: 'success',
+  failed: 'destructive',
+} as const;
+
+function buildReportsHref(page?: number) {
+  const params = new URLSearchParams();
+
+  if ((page ?? 1) > 1) {
+    params.set('page', String(page));
+  }
+
+  const value = params.toString();
+  return value ? `/reports?${value}` : '/reports';
+}
+
+type ReportsPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function ReportsPage({ searchParams }: ReportsPageProps) {
+  const resolvedSearchParams = await searchParams;
+  const page = parseReportJobsPage(resolvedSearchParams.page);
+  const [user, definitions, { rows: jobs, pagination }, jobCounts] =
+    await Promise.all([
+      requireReportsAccess(),
+      listReportDefinitions(),
+      listReportJobs({ page }),
+      countReportJobsByStatus(),
+    ]);
+  const jobSummary = {
+    total:
+      jobCounts.pending +
+      jobCounts.processing +
+      jobCounts.completed +
+      jobCounts.failed,
+    ...jobCounts,
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -71,35 +114,19 @@ export default async function ReportsPage() {
       />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard
-          label="Total jobs"
-          value={jobSummary.total}
-          helper="Recent queue history visible in this workspace."
-        />
-        <MetricCard
-          label="Pending"
-          value={jobSummary.pending}
-          helper="Waiting for the worker to claim them."
-          tone="warning"
-        />
-        <MetricCard
-          label="Processing"
-          value={jobSummary.processing}
-          helper="Currently being handled by the worker."
-          tone="primary"
-        />
-        <MetricCard
-          label="Completed"
-          value={jobSummary.completed}
-          helper="Ready with export artifacts or previews."
-          tone="success"
-        />
-        <MetricCard
-          label="Failed"
-          value={jobSummary.failed}
-          helper="Investigate artifact content for failure detail."
-          tone="destructive"
-        />
+        {Object.entries(summaryLabels).map(([key, label]) => (
+          <MetricCard
+            key={key}
+            label={label}
+            value={jobSummary[key as keyof typeof jobSummary]}
+            helper={
+              key === 'total'
+                ? 'Full report-job history across the local queue.'
+                : undefined
+            }
+            tone={summaryTones[key as keyof typeof summaryTones]}
+          />
+        ))}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
@@ -150,7 +177,11 @@ export default async function ReportsPage() {
 
       <DataTableCard
         title="Recent jobs"
-        description="Newest requests first, including query filters, lifecycle timestamps, and artifact previews."
+        description={
+          pagination.totalItems === 0
+            ? 'No report jobs have been queued yet.'
+            : `Showing ${pagination.startItem}-${pagination.endItem} of ${pagination.totalItems} queued jobs. Newest requests first, including query filters, lifecycle timestamps, and artifact previews.`
+        }
       >
         <Table>
           <TableHeader>
@@ -252,6 +283,50 @@ export default async function ReportsPage() {
             ) : null}
           </TableBody>
         </Table>
+
+        <div className="mt-4 flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Page {pagination.page} of {pagination.totalPages}
+          </p>
+          {pagination.totalPages > 1 ? (
+            <nav
+              className="flex items-center gap-2 self-start sm:self-auto"
+              aria-label="Reports pagination"
+            >
+              {pagination.hasPreviousPage ? (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={buildReportsHref(pagination.page - 1)}>
+                    <ArrowLeft data-icon="inline-start" />
+                    Previous
+                  </Link>
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" disabled>
+                  <ArrowLeft data-icon="inline-start" />
+                  Previous
+                </Button>
+              )}
+
+              <Badge variant="outline">
+                {pagination.startItem}-{pagination.endItem}
+              </Badge>
+
+              {pagination.hasNextPage ? (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={buildReportsHref(pagination.page + 1)}>
+                    Next
+                    <ArrowRight data-icon="inline-end" />
+                  </Link>
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" disabled>
+                  Next
+                  <ArrowRight data-icon="inline-end" />
+                </Button>
+              )}
+            </nav>
+          ) : null}
+        </div>
       </DataTableCard>
     </div>
   );

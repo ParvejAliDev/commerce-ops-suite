@@ -1,37 +1,26 @@
 # Commerce Ops Suite
 
-Local-first internal operations dashboard.
+Local-first internal operations dashboard for orders, reports, and users. The default local runtime is Docker Compose with Next.js, Postgres, Redis, and a worker process.
 
-## Local Quick Start
+## Quick Start
 
 1. Review `.env`.
-2. Run `docker-compose up --build`.
+2. Start the stack with `docker compose up --build`.
+   If you use the standalone binary instead of the plugin, `docker-compose up --build` is equivalent.
 3. Open `http://localhost:3000`.
+4. Sign in with one of the seeded accounts below.
 
-## Database Tooling
-
-- `npm run db:generate` creates SQL migrations from the Drizzle schema.
-- `npm run db:migrate` applies Drizzle migrations to the database defined by `DATABASE_URL`.
-- `npm run db:push` syncs the local schema to the database defined by `DATABASE_URL`.
-- `npm run db:pull` introspects the current database shape.
-- `npm run db:studio` opens Drizzle Studio against the local database.
-- `docker-compose run --rm seed` reruns the local sample data load if you need to refresh users, reports, or demo orders.
-
-## Seeded Credentials
+## Seeded Login
 
 - Admin: `admin.local@example.com`
 - Operations: `ops.local@example.com`
 - Viewer: `viewer.local@example.com`
 - Shared password: `LocalAdminPass123!`
 
-## Included Local Surface
+## Useful Commands
 
-- `migrate`, `seed`, `web`, `worker`, `postgres`, and `redis` run through Docker Compose.
-- `/orders` provides server-rendered list, filters, detail, notes, and audit context.
-- `/users` provides local access administration for admin users.
-- `/reports` queues CSV export jobs for the worker to process.
-- `/api/health`, `/api/ready`, and `/api/metrics` expose operational status.
-
-## Smoke Check
-
-- `npm run smoke` boots an isolated Docker Compose stack, verifies a seeded login plus report-worker flow, and tears the stack down automatically.
+- `npm run test`
+- `npm run typecheck`
+- `npm run build`
+- `npm run smoke`
+- `docker compose run --rm seed`
